@@ -1,9 +1,3 @@
-
-
-
-# Script corrigido - versão otimizada e funcional
-# Removida a tarefa agendada das 3h conforme solicitado
-
 # 1. Pastas de trabalho
 $LogDir = "$env:LOCALAPPDATA\Microsoft\Windows\DeviceMetadataCache"
 $TempDir = "$env:TEMP\Windows\TempLogs"
