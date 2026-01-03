@@ -1,16 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Configuração inicial SILENCIOSA
 $LogDir = "$env:LOCALAPPDATA\Microsoft\Windows\DeviceMetadataCache"
 $TempDir = "$env:TEMP\Windows\TempLogs"
